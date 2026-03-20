@@ -1,0 +1,45 @@
+#!/bin/bash
+
+INVENTORY_FILE="inventory.txt"
+LOCK_FILE="inventory.lock"
+LOG_FILE="sales.log"
+STUDENT_ID="IDTB110322"
+
+# --- Check argument count ---
+if [ "$#" -ne 2 ]; then
+    echo "Usage: buy_widget <username> <quantity>"
+    exit 1
+fi
+
+USERNAME="$1"
+QUANTITY="$2"
+
+# --- Validate quantity is a positive integer ---
+if ! [[ "$QUANTITY" =~ ^[0-9]+$ ]] || [ "$QUANTITY" -le 0 ]; then
+    echo "Error: quantity must be a positive integer."
+    exit 1
+fi
+
+# --- Logging function ---
+log_transaction() {
+    echo "[IDTB110322] [SUCCESS] $USERNAME bought $QUANTITY widgets." >> "$LOG_FILE"
+}
+
+# --- PATCHED: Critical section protected by flock ---
+(
+    flock -x 200
+
+    # CRITICAL SECTION START
+    CURRENT_INVENTORY=$(cat "$INVENTORY_FILE")
+
+    if [ "$QUANTITY" -le "$CURRENT_INVENTORY" ]; then
+        NEW_INVENTORY=$(( CURRENT_INVENTORY - QUANTITY ))
+        echo "$NEW_INVENTORY" > "$INVENTORY_FILE"
+        log_transaction
+        echo "Transaction successful! Remaining inventory: $NEW_INVENTORY"
+    else
+        echo "Transaction Failed: Not enough inventory!"
+    fi
+    # CRITICAL SECTION END
+
+) 200> "$LOCK_FILE"
